@@ -97,56 +97,5 @@ jobs:
             # Deploy with docker-compose
             docker-compose up -d
 
-            # Setup Nginx
-            echo "Setting up nginx..."
-
-            # Install nginx if not already installed
-            if ! command -v nginx &> /dev/null; then
-              sudo apt update
-              sudo apt install -y nginx
-            fi
-
-            # Copy nginx config
-            sudo cp nginx.conf /etc/nginx/sites-available/nostr-relay
-
-            # Enable site
-            sudo ln -sf /etc/nginx/sites-available/nostr-relay /etc/nginx/sites-enabled/
-
-            # Remove default site
-            sudo rm -f /etc/nginx/sites-enabled/default
-
-            # Test nginx config
-            sudo nginx -t
-
-            # Reload nginx
-            sudo systemctl reload nginx
-
-            # Enable nginx to start on boot
-            sudo systemctl enable nginx
-
-            # Configure firewall
-            sudo ufw allow 80/tcp
-            sudo ufw allow 443/tcp
-            sudo ufw allow 22/tcp
-
-            # Setup SSL with Certbot
-            echo "Setting up SSL certificate..."
-
-            # Install certbot if not already installed
-            if ! command -v certbot &> /dev/null; then
-              sudo apt install -y certbot python3-certbot-nginx
-            fi
-
-            # Get SSL certificate (only if not already exists)
-            if [ ! -d /etc/letsencrypt/live/strfry.nostrarabia.com ]; then
-              sudo certbot --nginx -d strfry.nostrarabia.com --non-interactive --agree-tos --email admin@nostrarabia.com --redirect
-              echo "SSL certificate obtained successfully!"
-            else
-              echo "SSL certificate already exists, skipping..."
-            fi
-
             # Show logs
             docker-compose logs --tail=50
-
-            echo "Deployment complete!"
-            echo "Relay accessible at: wss://strfry.nostrarabia.com"
