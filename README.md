@@ -277,3 +277,7 @@ For issues specific to:
 - Strfry: [strfry issues](https://github.com/hoytech/strfry/issues)
 - Noteguard: [noteguard issues](https://github.com/damus-io/noteguard/issues)
 - This setup: Open an issue in this repository
+
+
+## Deployment Status
+Last deployed: Tue Oct 28 22:42:48 EDT 2025
