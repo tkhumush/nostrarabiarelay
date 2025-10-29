@@ -59,22 +59,36 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Optional: Deploy to server via SSH
-  # Uncomment and configure the following job to enable automatic deployment
-  # deploy:
-  #   needs: build-and-push
-  #   runs-on: ubuntu-latest
-  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-  #
-  #   steps:
-  #     - name: Deploy to server
-  #       uses: appleboy/ssh-action@v1.0.0
-  #       with:
-  #         host: ${{ secrets.DEPLOY_HOST }}
-  #         username: ${{ secrets.DEPLOY_USER }}
-  #         key: ${{ secrets.DEPLOY_SSH_KEY }}
-  #         script: |
-  #           cd /path/to/nostr-relay
-  #           docker-compose pull
-  #           docker-compose up -d
-  #           docker-compose logs -f --tail=100
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /home/nostrarabia/nostr-relay || (mkdir -p /home/nostrarabia/nostr-relay && cd /home/nostrarabia/nostr-relay)
+
+            # Clone or update repo
+            if [ ! -d .git ]; then
+              git clone https://github.com/tkhumush/nostrarabiarelay.git .
+            else
+              git pull origin main
+            fi
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull latest image
+            docker compose pull
+
+            # Deploy with docker compose
+            docker compose up -d
+
+            # Show logs
+            docker compose logs --tail=50
