@@ -1,0 +1,30 @@
+# Strfry database
+strfry-db/
+*.mdb
+*.lck
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/

@@ -1,0 +1,25 @@
+services:
+  nostr-relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nostr-arabia-relay
+    ports:
+      - "7777:7777"
+    volumes:
+      # Mount configuration files (for easy updates without rebuild)
+      - ./strfry.conf:/app/strfry.conf:ro
+      - ./noteguard.toml:/app/noteguard.toml:ro
+      # Persist database
+      - strfry-data:/app/strfry-db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7777"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  strfry-data:
+    driver: local
