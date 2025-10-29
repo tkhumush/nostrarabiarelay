@@ -72,23 +72,29 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            cd /home/nostrarabia/nostr-relay || (mkdir -p /home/nostrarabia/nostr-relay && cd /home/nostrarabia/nostr-relay)
+            # Create and navigate to deploy directory
+            mkdir -p /home/nostrarabia/nostr-relay
+            cd /home/nostrarabia/nostr-relay
 
             # Clone or update repo
             if [ ! -d .git ]; then
+              # Remove any existing files if directory exists but no git repo
+              rm -rf * .[!.]* 2>/dev/null || true
               git clone https://github.com/tkhumush/nostrarabiarelay.git .
             else
+              git fetch origin
+              git reset --hard origin/main
               git pull origin main
             fi
 
             # Login to GitHub Container Registry
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Pull latest image
-            docker compose pull
+            # Pull latest image (using docker-compose with hyphen)
+            docker-compose pull
 
-            # Deploy with docker compose
-            docker compose up -d
+            # Deploy with docker-compose
+            docker-compose up -d
 
             # Show logs
-            docker compose logs --tail=50
+            docker-compose logs --tail=50
