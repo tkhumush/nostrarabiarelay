@@ -1,5 +1,6 @@
 services:
   nostr-relay:
+    image: ghcr.io/tkhumush/nostrarabiarelay:latest
     build:
       context: .
       dockerfile: Dockerfile
