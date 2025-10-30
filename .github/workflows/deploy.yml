@@ -97,7 +97,11 @@ jobs:
             # Pull latest images (using docker-compose with hyphen)
             docker-compose pull
 
-            # Deploy with docker-compose
+            # Run SSL initialization (script checks if certs exist and skips if present)
+            chmod +x init-ssl.sh
+            ./init-ssl.sh
+
+            # Deploy all services with docker-compose
             docker-compose up -d
 
             # Show logs

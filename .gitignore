@@ -10,6 +10,7 @@ data/
 # SSL certificates
 certbot/
 nginx/conf.d/backup/
+nginx/conf.d-backup/
 
 # Docker
 .dockerignore

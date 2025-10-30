@@ -15,111 +15,84 @@ echo "SSL Certificate Initialization"
 echo "==================================="
 echo ""
 
-# Check if certificates already exist by trying to list them
-CERT_EXISTS=$(docker-compose run --rm certbot certificates 2>&1 | grep -c "Certificate Name: nostrarabia.com" || echo "0")
+# Check if certificates already exist
+echo "Checking for existing certificates..."
+CERT_EXISTS=$(docker-compose run --rm --entrypoint "certbot" certbot certificates 2>&1 | grep -c "Certificate Name: nostrarabia.com" || echo "0")
 
 if [ "$CERT_EXISTS" != "0" ]; then
-    echo "Certificates already exist. Skipping initialization."
-    echo "If you want to re-initialize, delete the certbot volumes and run this script again."
-    echo "Run: docker-compose down -v"
+    echo "✓ Certificates already exist. Skipping initialization."
     exit 0
 fi
 
-echo "Creating directories for ACME challenge..."
-mkdir -p ./certbot-www
-
+echo "No certificates found. Starting first-time SSL setup..."
 echo ""
-echo "Creating temporary nginx configuration..."
 
-# Create temporary nginx config that doesn't require SSL
-cat > ./nginx/conf.d/temp.conf << 'EOF'
-# Temporary configuration for certificate generation
-server {
-    listen 80 default_server;
-    server_name _;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 200 'Certificate generation in progress...\n';
-        add_header Content-Type text/plain;
-    }
-}
-EOF
-
-# Backup original configs
-echo "Backing up original nginx configs..."
-mkdir -p ./nginx/conf.d/backup
-for file in ./nginx/conf.d/*.conf; do
-    filename=$(basename "$file")
-    if [ "$filename" != "temp.conf" ]; then
-        mv "$file" "./nginx/conf.d/backup/" 2>/dev/null || true
-    fi
-done
-
+# Step 1: Temporarily use HTTP-only nginx configs
+echo "Step 1: Setting up temporary HTTP-only configuration..."
+mkdir -p ./nginx/conf.d-backup
+cp -r ./nginx/conf.d/* ./nginx/conf.d-backup/
+rm -f ./nginx/conf.d/*.conf
+cp ./nginx/conf.d-http-only/* ./nginx/conf.d/
+echo "✓ HTTP-only configs activated"
 echo ""
-echo "Starting nginx with temporary configuration..."
+
+# Step 2: Start nginx with HTTP-only config
+echo "Step 2: Starting nginx for certificate generation..."
 docker-compose up -d nginx
-
-echo ""
 echo "Waiting for nginx to be ready..."
 sleep 10
+echo "✓ Nginx started"
+echo ""
 
-# Determine if we're using staging
+# Step 3: Generate certificates
 STAGING_ARG=""
 if [ $STAGING != "0" ]; then
     STAGING_ARG="--staging"
     echo "Using Let's Encrypt STAGING server (for testing)"
 fi
 
-echo ""
-echo "Obtaining SSL certificates..."
-echo "This may take a few moments..."
+echo "Step 3: Generating SSL certificates..."
+echo "This usually takes less than a minute..."
 echo ""
 
-# Obtain certificates for all domains in one certificate (with SANs)
-echo "Obtaining certificate for all domains..."
-DOMAIN_ARGS=""
-for domain in "${DOMAINS[@]}"; do
-    DOMAIN_ARGS="$DOMAIN_ARGS -d $domain"
-done
-
-docker-compose run --rm certbot certonly \
+docker-compose run --rm --entrypoint "certbot" certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     --email "$EMAIL" \
     --agree-tos \
     --no-eff-email \
-    --force-renewal \
     $STAGING_ARG \
-    $DOMAIN_ARGS
+    -d nostrarabia.com \
+    -d strfry.nostrarabia.com \
+    -d media.nostrarabia.com
 
 echo ""
-echo "Stopping temporary nginx..."
-docker-compose stop nginx
-docker-compose rm -f nginx
-
+echo "✓ Certificates generated successfully"
 echo ""
-echo "Restoring original nginx configs..."
-rm -f ./nginx/conf.d/temp.conf
-mv ./nginx/conf.d/backup/* ./nginx/conf.d/ 2>/dev/null || true
-rmdir ./nginx/conf.d/backup 2>/dev/null || true
 
-# Clean up temporary directory
-rm -rf ./certbot-www
-
+# Step 4: Restore HTTPS nginx configs
+echo "Step 4: Activating HTTPS configuration..."
+rm -f ./nginx/conf.d/*.conf
+cp ./nginx/conf.d-backup/* ./nginx/conf.d/
+rm -rf ./nginx/conf.d-backup
+echo "✓ HTTPS configs activated"
 echo ""
+
+# Step 5: Restart nginx with HTTPS
+echo "Step 5: Restarting nginx with HTTPS..."
+docker-compose restart nginx
+sleep 5
+echo "✓ Nginx restarted with HTTPS"
+echo ""
+
 echo "==================================="
-echo "SSL Initialization Complete!"
+echo "SSL Setup Complete!"
 echo "==================================="
 echo ""
-echo "Certificate obtained for:"
+echo "Your services are now secured with HTTPS:"
 for domain in "${DOMAINS[@]}"; do
-    echo "  - $domain"
+    echo "  ✓ https://$domain"
 done
 echo ""
-echo "Now you can start the full stack with:"
-echo "  docker-compose up -d"
+echo "Certificates will auto-renew every 90 days."
 echo ""
