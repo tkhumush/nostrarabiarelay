@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Arabia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+        p {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        .service-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+        .service-card:hover {
+            transform: translateY(-5px);
+        }
+        .service-card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .service-card a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.5rem 1.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 25px;
+            transition: background 0.3s ease;
+        }
+        .service-card a:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .footer {
+            margin-top: 3rem;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nostr Arabia</h1>
+        <p>Decentralized communication infrastructure for the Arabic-speaking Nostr community</p>
+
+        <div class="services">
+            <div class="service-card">
+                <h2>Nostr Relay</h2>
+                <p>High-performance whitelisted relay powered by strfry</p>
+                <a href="https://strfry.nostrarabia.com" target="_blank">Connect →</a>
+            </div>
+
+            <div class="service-card">
+                <h2>Media Server</h2>
+                <p>Blossom-powered media and blob storage</p>
+                <a href="https://media.nostrarabia.com" target="_blank">Upload →</a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Built with strfry, noteguard, and blossom-server</p>
+        </div>
+    </div>
+</body>
+</html>

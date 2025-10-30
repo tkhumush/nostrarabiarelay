@@ -97,6 +97,17 @@ jobs:
             # Pull latest images (using docker-compose with hyphen)
             docker-compose pull
 
+            # Check if SSL certificates need to be initialized
+            if [ ! -d "certbot/conf/live/nostrarabia.com" ]; then
+              echo "SSL certificates not found. Running initialization..."
+              # Make init script executable
+              chmod +x init-ssl.sh
+              # Run SSL initialization
+              ./init-ssl.sh
+            else
+              echo "SSL certificates found. Skipping initialization."
+            fi
+
             # Deploy with docker-compose
             docker-compose up -d
 

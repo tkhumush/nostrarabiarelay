@@ -59,9 +59,9 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-Your relay will be available at:
-- Relay WebSocket: `ws://localhost:7777`
-- Blossom Server: `http://localhost:3000`
+Your services will be available at:
+- **Production (with SSL)**: `wss://strfry.nostrarabia.com` and `https://media.nostrarabia.com`
+- **Local development**: `ws://localhost:7777` (relay) and `http://localhost:3000` (media)
 
 ### Testing Your Relay
 
@@ -174,6 +174,41 @@ storage:
 **Environment Variables:**
 - `BLOSSOM_ADMIN_PASSWORD`: Admin dashboard password (recommended to set via GitHub secrets for deployment)
 
+### Nginx Reverse Proxy with SSL
+
+The deployment includes a fully dockerized nginx reverse proxy with automatic SSL certificate management via Let's Encrypt.
+
+**Domains configured:**
+- `nostrarabia.com` - Main landing page
+- `strfry.nostrarabia.com` - Nostr relay with WebSocket support
+- `media.nostrarabia.com` - Blossom media server
+
+**Features:**
+- Automatic SSL certificate generation and renewal
+- HTTP to HTTPS redirects
+- WebSocket support for Nostr relay
+- Optimized for large file uploads (media server)
+- Security headers and best practices
+
+**SSL Initialization:**
+
+On first deployment, SSL certificates are automatically obtained using the `init-ssl.sh` script. You can also run it manually:
+
+```bash
+./init-ssl.sh
+```
+
+The script will:
+1. Create temporary nginx configuration
+2. Start nginx for ACME challenge
+3. Obtain certificates from Let's Encrypt for all domains
+4. Stop temporary setup and restore full configuration
+
+**Important:** Make sure your DNS A records point to your server IP before running the SSL initialization:
+- `nostrarabia.com` → Your server IP
+- `strfry.nostrarabia.com` → Your server IP
+- `media.nostrarabia.com` → Your server IP
+
 ## Deployment
 
 ### GitHub Actions CI/CD
@@ -205,67 +240,66 @@ To enable automatic deployment to your server:
 On your server:
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/your-username/nostrarabiarelay:latest
+# Clone the repository
+git clone https://github.com/your-username/nostrarabiarelay.git
+cd nostrarabiarelay
 
-# Run with docker-compose
+# Pull the latest images
+docker-compose pull
+
+# Initialize SSL certificates (first time only)
+./init-ssl.sh
+
+# Start all services
 docker-compose up -d
 ```
 
 ### Production Considerations
 
-For production deployments:
+**1. SSL Certificates:**
+- Included nginx setup handles SSL automatically with Let's Encrypt
+- Certificates renew automatically every 12 hours (certbot checks)
+- No manual certificate management needed
 
-1. **Reverse Proxy**: Use nginx or Caddy for SSL/TLS:
-```nginx
-# Nostr Relay
-server {
-    listen 443 ssl;
-    server_name relay.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:7777;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-
-# Blossom Server
-server {
-    listen 443 ssl;
-    server_name cdn.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Increase timeouts for large file uploads
-        client_max_body_size 100M;
-        proxy_connect_timeout 600;
-        proxy_send_timeout 600;
-        proxy_read_timeout 600;
-        send_timeout 600;
-    }
-}
-```
-
-2. **Persistent Storage**: Ensure the database volume is backed up:
+**2. Persistent Storage & Backups:**
 ```bash
+# Backup relay database
 docker-compose exec nostr-relay tar czf /backup/strfry-db-$(date +%Y%m%d).tar.gz /app/strfry-db
+
+# Backup blossom media
+docker-compose exec blossom-server tar czf /backup/blossom-data-$(date +%Y%m%d).tar.gz /app/data
+
+# Backup SSL certificates
+tar czf /backup/certbot-$(date +%Y%m%d).tar.gz certbot/
 ```
 
-3. **Monitoring**: Set up health checks and monitoring for uptime
+**3. Monitoring:**
+- Health checks are configured for all services
+- Check service status: `docker-compose ps`
+- View logs: `docker-compose logs -f [service-name]`
 
-4. **Firewall**: Only expose necessary ports (443/80 for web if using reverse proxy, or 7777 for relay and 3000 for blossom if not)
+**4. Firewall Configuration:**
+```bash
+# Allow HTTP/HTTPS only (nginx handles routing)
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
 
-5. **Environment Variables**: Set `BLOSSOM_ADMIN_PASSWORD` in your server environment or docker-compose for production security
+# Block direct access to backend services
+# Services only accessible through nginx proxy
+```
+
+**5. Environment Variables:**
+- Set `BLOSSOM_ADMIN_PASSWORD` via GitHub secrets or `.env` file
+- Never commit secrets to the repository
+
+**6. DNS Configuration:**
+Ensure your DNS A records are correctly configured:
+```
+nostrarabia.com       → 172.105.154.238
+strfry.nostrarabia.com → 172.105.154.238
+media.nostrarabia.com  → 172.105.154.238
+```
 
 ## Converting Npub to Hex
 
@@ -300,14 +334,40 @@ docker-compose logs -f
 
 Check relay info (NIP-11):
 ```bash
+# Production
+curl https://strfry.nostrarabia.com -H "Accept: application/nostr+json"
+
+# Local
 curl http://localhost:7777 -H "Accept: application/nostr+json"
 ```
 
 Access blossom admin dashboard:
 ```
-http://localhost:3000
+Production: https://media.nostrarabia.com
+Local: http://localhost:3000
 ```
 Login with username `admin` and the password set in `BLOSSOM_ADMIN_PASSWORD`
+
+Check nginx status and configuration:
+```bash
+# View nginx logs
+docker-compose logs -f nginx
+
+# Test nginx configuration
+docker-compose exec nginx nginx -t
+
+# Reload nginx configuration
+docker-compose exec nginx nginx -s reload
+```
+
+SSL certificate status:
+```bash
+# List certificates
+docker-compose run --rm certbot certificates
+
+# Force renewal (for testing)
+docker-compose run --rm certbot renew --force-renewal
+```
 
 ## Troubleshooting
 
@@ -332,34 +392,73 @@ docker-compose down -v
 docker-compose up -d
 ```
 
+### SSL/HTTPS issues
+
+**Certificate generation fails:**
+1. Verify DNS records are correctly pointed to your server
+2. Wait a few minutes for DNS propagation
+3. Check if port 80 is accessible from the internet
+4. Review certbot logs: `docker-compose logs certbot`
+
+**502 Bad Gateway:**
+1. Check if backend services are running: `docker-compose ps`
+2. Verify nginx configuration: `docker-compose exec nginx nginx -t`
+3. Check backend service logs for errors
+
+**Certificate not found errors:**
+1. Run SSL initialization: `./init-ssl.sh`
+2. Check if certificates exist: `ls -la certbot/conf/live/`
+3. Verify domain names in nginx configs match your actual domains
+
 ## Architecture
 
 ```
 ┌─────────────────┐
 │  Nostr Client   │
 └────────┬────────┘
-         │ WebSocket/HTTP
+         │ WSS/HTTPS
+         │
          ▼
-┌─────────────────────────────────────────┐
-│          Reverse Proxy (Optional)       │
-│         nginx/Caddy - SSL/TLS           │
-└──────────┬─────────────────┬────────────┘
-           │                 │
-           │ :7777           │ :3000
-           ▼                 ▼
-┌────────────────┐  ┌──────────────────┐
-│  strfry relay  │  │  blossom-server  │
-│                │  │                  │
-│ ┌───────────┐  │  │ ┌──────────────┐ │
-│ │noteguard  │  │  │ │ Media Store  │ │
-│ └───────────┘  │  │ │   (blobs)    │ │
-│                │  │ └──────────────┘ │
-│ ┌───────────┐  │  │                  │
-│ │   LMDB    │  │  │ ┌──────────────┐ │
-│ │ (events)  │  │  │ │    SQLite    │ │
-│ └───────────┘  │  │ │  (metadata)  │ │
-└────────────────┘  │ └──────────────┘ │
-                    └──────────────────┘
+┌─────────────────────────────────────────────────┐
+│              Internet (DNS)                     │
+│  nostrarabia.com / strfry / media subdomains    │
+└────────────────────┬────────────────────────────┘
+                     │ Port 80/443
+                     ▼
+         ┌───────────────────────┐
+         │    Nginx Proxy        │
+         │   + Let's Encrypt     │
+         │   (SSL/TLS Handler)   │
+         └───────┬───────────┬───┘
+                 │           │
+    :7777 (WS)   │           │   :3000 (HTTP)
+                 ▼           ▼
+    ┌────────────────┐  ┌──────────────────┐
+    │  strfry relay  │  │  blossom-server  │
+    │                │  │                  │
+    │ ┌───────────┐  │  │ ┌──────────────┐ │
+    │ │noteguard  │  │  │ │ Media Store  │ │
+    │ │(whitelist)│  │  │ │   (blobs)    │ │
+    │ └───────────┘  │  │ └──────────────┘ │
+    │                │  │                  │
+    │ ┌───────────┐  │  │ ┌──────────────┐ │
+    │ │   LMDB    │  │  │ │    SQLite    │ │
+    │ │ (database)│  │  │ │  (metadata)  │ │
+    │ └───────────┘  │  │ └──────────────┘ │
+    └────────────────┘  └──────────────────┘
+         │                      │
+         └──────────┬───────────┘
+                    │
+            ┌───────▼───────┐
+            │ Docker Network│
+            │ (nostr-network)│
+            └───────────────┘
+
+All services run in Docker containers with:
+- Automatic restarts
+- Health checks
+- Persistent volumes
+- Isolated networking
 ```
 
 ## Resources

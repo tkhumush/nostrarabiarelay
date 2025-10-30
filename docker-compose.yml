@@ -5,8 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: nostr-arabia-relay
-    ports:
-      - "7777:7777"
+    expose:
+      - "7777"
     volumes:
       # Mount configuration files (for easy updates without rebuild)
       - ./strfry.conf:/app/strfry.conf:ro
@@ -14,6 +14,8 @@ services:
       # Persist database
       - strfry-data:/app/strfry-db
     restart: unless-stopped
+    networks:
+      - nostr-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7777"]
       interval: 30s
@@ -24,8 +26,8 @@ services:
   blossom-server:
     image: ghcr.io/hzrd149/blossom-server:master
     container_name: blossom-server
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     volumes:
       # Mount configuration file
       - ./blossom.yml:/app/config.yml:ro
@@ -36,6 +38,8 @@ services:
       # You can set this in your deployment secrets
       - BLOSSOM_ADMIN_PASSWORD=${BLOSSOM_ADMIN_PASSWORD:-changeme}
     restart: unless-stopped
+    networks:
+      - nostr-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 30s
@@ -43,8 +47,50 @@ services:
       retries: 3
       start_period: 40s
 
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Nginx configuration
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      # SSL certificates
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    depends_on:
+      - nostr-relay
+      - blossom-server
+    restart: unless-stopped
+    networks:
+      - nostr-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+
 volumes:
   strfry-data:
     driver: local
   blossom-data:
     driver: local
+  certbot-conf:
+    driver: local
+  certbot-www:
+    driver: local
+
+networks:
+  nostr-network:
+    driver: bridge

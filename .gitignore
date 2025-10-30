@@ -7,6 +7,10 @@ strfry-db/
 blossom-data/
 data/
 
+# SSL certificates
+certbot/
+nginx/conf.d/backup/
+
 # Docker
 .dockerignore
 
