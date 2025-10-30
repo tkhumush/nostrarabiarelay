@@ -15,16 +15,18 @@ echo "SSL Certificate Initialization"
 echo "==================================="
 echo ""
 
-# Check if certificates already exist
-if [ -d "./certbot/conf/live/nostrarabia.com" ]; then
+# Check if certificates already exist by trying to list them
+CERT_EXISTS=$(docker-compose run --rm certbot certificates 2>&1 | grep -c "Certificate Name: nostrarabia.com" || echo "0")
+
+if [ "$CERT_EXISTS" != "0" ]; then
     echo "Certificates already exist. Skipping initialization."
-    echo "If you want to re-initialize, delete the ./certbot directory and run this script again."
+    echo "If you want to re-initialize, delete the certbot volumes and run this script again."
+    echo "Run: docker-compose down -v"
     exit 0
 fi
 
-echo "Creating directories for certbot..."
-mkdir -p ./certbot/conf
-mkdir -p ./certbot/www
+echo "Creating directories for ACME challenge..."
+mkdir -p ./certbot-www
 
 echo ""
 echo "Creating temporary nginx configuration..."
@@ -33,15 +35,15 @@ echo "Creating temporary nginx configuration..."
 cat > ./nginx/conf.d/temp.conf << 'EOF'
 # Temporary configuration for certificate generation
 server {
-    listen 80;
-    server_name nostrarabia.com www.nostrarabia.com strfry.nostrarabia.com media.nostrarabia.com;
+    listen 80 default_server;
+    server_name _;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
     location / {
-        return 200 'Certificate generation in progress...';
+        return 200 'Certificate generation in progress...\n';
         add_header Content-Type text/plain;
     }
 }
@@ -51,18 +53,19 @@ EOF
 echo "Backing up original nginx configs..."
 mkdir -p ./nginx/conf.d/backup
 for file in ./nginx/conf.d/*.conf; do
-    if [ "$(basename "$file")" != "temp.conf" ]; then
-        mv "$file" ./nginx/conf.d/backup/ 2>/dev/null || true
+    filename=$(basename "$file")
+    if [ "$filename" != "temp.conf" ]; then
+        mv "$file" "./nginx/conf.d/backup/" 2>/dev/null || true
     fi
 done
 
 echo ""
-echo "Starting temporary nginx container..."
+echo "Starting nginx with temporary configuration..."
 docker-compose up -d nginx
 
 echo ""
 echo "Waiting for nginx to be ready..."
-sleep 5
+sleep 10
 
 # Determine if we're using staging
 STAGING_ARG=""
@@ -76,22 +79,27 @@ echo "Obtaining SSL certificates..."
 echo "This may take a few moments..."
 echo ""
 
-# Obtain certificates for all domains
+# Obtain certificates for all domains in one certificate (with SANs)
+echo "Obtaining certificate for all domains..."
+DOMAIN_ARGS=""
 for domain in "${DOMAINS[@]}"; do
-    echo "Obtaining certificate for: $domain"
-    docker-compose run --rm certbot certonly \
-        --webroot \
-        --webroot-path=/var/www/certbot \
-        --email "$EMAIL" \
-        --agree-tos \
-        --no-eff-email \
-        $STAGING_ARG \
-        -d "$domain"
-    echo ""
+    DOMAIN_ARGS="$DOMAIN_ARGS -d $domain"
 done
 
+docker-compose run --rm certbot certonly \
+    --webroot \
+    --webroot-path=/var/www/certbot \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --force-renewal \
+    $STAGING_ARG \
+    $DOMAIN_ARGS
+
+echo ""
 echo "Stopping temporary nginx..."
-docker-compose down
+docker-compose stop nginx
+docker-compose rm -f nginx
 
 echo ""
 echo "Restoring original nginx configs..."
@@ -99,12 +107,15 @@ rm -f ./nginx/conf.d/temp.conf
 mv ./nginx/conf.d/backup/* ./nginx/conf.d/ 2>/dev/null || true
 rmdir ./nginx/conf.d/backup 2>/dev/null || true
 
+# Clean up temporary directory
+rm -rf ./certbot-www
+
 echo ""
 echo "==================================="
 echo "SSL Initialization Complete!"
 echo "==================================="
 echo ""
-echo "Certificates have been obtained for:"
+echo "Certificate obtained for:"
 for domain in "${DOMAINS[@]}"; do
     echo "  - $domain"
 done

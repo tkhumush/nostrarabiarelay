@@ -98,7 +98,10 @@ jobs:
             docker-compose pull
 
             # Check if SSL certificates need to be initialized
-            if [ ! -d "certbot/conf/live/nostrarabia.com" ]; then
+            # Check if certificate exists in docker volume
+            CERT_CHECK=$(docker-compose run --rm certbot certificates 2>&1 | grep -c "Certificate Name: nostrarabia.com" || echo "0")
+
+            if [ "$CERT_CHECK" = "0" ]; then
               echo "SSL certificates not found. Running initialization..."
               # Make init script executable
               chmod +x init-ssl.sh
