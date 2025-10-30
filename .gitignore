@@ -3,6 +3,10 @@ strfry-db/
 *.mdb
 *.lck
 
+# Blossom server data
+blossom-data/
+data/
+
 # Docker
 .dockerignore
 

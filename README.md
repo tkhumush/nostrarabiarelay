@@ -1,11 +1,12 @@
 # Nostr Arabia Relay
 
-A whitelisted Nostr relay powered by [strfry](https://github.com/hoytech/strfry) with [noteguard](https://github.com/damus-io/noteguard) plugin for access control.
+A whitelisted Nostr relay powered by [strfry](https://github.com/hoytech/strfry) with [noteguard](https://github.com/damus-io/noteguard) plugin for access control, plus [blossom-server](https://github.com/hzrd149/blossom-server) for media/blob storage.
 
 ## Features
 
 - High-performance Nostr relay using strfry
 - Whitelist-based access control via noteguard
+- Media/blob storage server via blossom-server
 - Containerized deployment with Docker
 - Automated CI/CD pipeline with GitHub Actions
 - Easy configuration management
@@ -58,7 +59,9 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-Your relay will be available at `ws://localhost:7777`
+Your relay will be available at:
+- Relay WebSocket: `ws://localhost:7777`
+- Blossom Server: `http://localhost:3000`
 
 ### Testing Your Relay
 
@@ -110,6 +113,67 @@ Beyond whitelisting, noteguard supports:
 
 See `noteguard.toml` for examples (currently commented out).
 
+### Blossom Server Configuration
+
+The blossom-server provides media and blob storage for Nostr. Configure it via `blossom.yml`:
+
+**Key settings:**
+
+1. **Admin Dashboard** (accessible at `http://localhost:3000`):
+```yaml
+dashboard:
+  enabled: true
+  username: admin
+  password: "${BLOSSOM_ADMIN_PASSWORD}"
+```
+
+Set the `BLOSSOM_ADMIN_PASSWORD` environment variable or it will be auto-generated on startup.
+
+2. **Storage Backend**:
+```yaml
+storage:
+  backend: local  # or "s3" for cloud storage
+  local:
+    dir: ./data/blobs
+```
+
+3. **Upload Settings**:
+```yaml
+upload:
+  enabled: true
+  requireAuth: true  # Require Nostr authentication to upload
+```
+
+4. **Media Processing**:
+```yaml
+media:
+  enabled: true
+  image:
+    quality: 85
+    outputFormat: "webp"
+    maxWidth: 1920
+    maxHeight: 1080
+  video:
+    quality: 85
+    maxHeight: 1080
+    format: "mp4"
+```
+
+5. **Retention Rules** (automatic cleanup):
+```yaml
+storage:
+  rules:
+    - type: text/*
+      expiration: 1 month
+    - type: "image/*"
+      expiration: 2 weeks
+    - type: "video/*"
+      expiration: 1 week
+```
+
+**Environment Variables:**
+- `BLOSSOM_ADMIN_PASSWORD`: Admin dashboard password (recommended to set via GitHub secrets for deployment)
+
 ## Deployment
 
 ### GitHub Actions CI/CD
@@ -128,6 +192,7 @@ To enable automatic deployment to your server:
    - `DEPLOY_HOST`: Your server IP/hostname
    - `DEPLOY_USER`: SSH username
    - `DEPLOY_SSH_KEY`: SSH private key
+   - `BLOSSOM_ADMIN_PASSWORD`: Password for blossom admin dashboard (optional)
 
 2. Uncomment the `deploy` job in `.github/workflows/deploy.yml`
 
@@ -153,6 +218,7 @@ For production deployments:
 
 1. **Reverse Proxy**: Use nginx or Caddy for SSL/TLS:
 ```nginx
+# Nostr Relay
 server {
     listen 443 ssl;
     server_name relay.yourdomain.com;
@@ -166,6 +232,28 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
+
+# Blossom Server
+server {
+    listen 443 ssl;
+    server_name cdn.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Increase timeouts for large file uploads
+        client_max_body_size 100M;
+        proxy_connect_timeout 600;
+        proxy_send_timeout 600;
+        proxy_read_timeout 600;
+        send_timeout 600;
+    }
+}
 ```
 
 2. **Persistent Storage**: Ensure the database volume is backed up:
@@ -175,7 +263,9 @@ docker-compose exec nostr-relay tar czf /backup/strfry-db-$(date +%Y%m%d).tar.gz
 
 3. **Monitoring**: Set up health checks and monitoring for uptime
 
-4. **Firewall**: Only expose necessary ports (443/80 for web, 7777 for relay)
+4. **Firewall**: Only expose necessary ports (443/80 for web if using reverse proxy, or 7777 for relay and 3000 for blossom if not)
+
+5. **Environment Variables**: Set `BLOSSOM_ADMIN_PASSWORD` in your server environment or docker-compose for production security
 
 ## Converting Npub to Hex
 
@@ -198,13 +288,26 @@ nak decode npub1...
 
 View real-time logs:
 ```bash
+# Relay logs
 docker-compose logs -f nostr-relay
+
+# Blossom server logs
+docker-compose logs -f blossom-server
+
+# All services
+docker-compose logs -f
 ```
 
 Check relay info (NIP-11):
 ```bash
 curl http://localhost:7777 -H "Accept: application/nostr+json"
 ```
+
+Access blossom admin dashboard:
+```
+http://localhost:3000
+```
+Login with username `admin` and the password set in `BLOSSOM_ADMIN_PASSWORD`
 
 ## Troubleshooting
 
@@ -235,31 +338,36 @@ docker-compose up -d
 ┌─────────────────┐
 │  Nostr Client   │
 └────────┬────────┘
-         │ WebSocket
+         │ WebSocket/HTTP
          ▼
-┌─────────────────┐
-│  Reverse Proxy  │ (nginx/Caddy - SSL/TLS)
-│   (Optional)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  strfry relay   │
-│                 │
-│  ┌───────────┐  │
-│  │ noteguard │  │ (whitelist filter)
-│  └───────────┘  │
-│                 │
-│  ┌───────────┐  │
-│  │ LMDB      │  │ (database)
-│  └───────────┘  │
-└─────────────────┘
+┌─────────────────────────────────────────┐
+│          Reverse Proxy (Optional)       │
+│         nginx/Caddy - SSL/TLS           │
+└──────────┬─────────────────┬────────────┘
+           │                 │
+           │ :7777           │ :3000
+           ▼                 ▼
+┌────────────────┐  ┌──────────────────┐
+│  strfry relay  │  │  blossom-server  │
+│                │  │                  │
+│ ┌───────────┐  │  │ ┌──────────────┐ │
+│ │noteguard  │  │  │ │ Media Store  │ │
+│ └───────────┘  │  │ │   (blobs)    │ │
+│                │  │ └──────────────┘ │
+│ ┌───────────┐  │  │                  │
+│ │   LMDB    │  │  │ ┌──────────────┐ │
+│ │ (events)  │  │  │ │    SQLite    │ │
+│ └───────────┘  │  │ │  (metadata)  │ │
+└────────────────┘  │ └──────────────┘ │
+                    └──────────────────┘
 ```
 
 ## Resources
 
 - [Strfry Documentation](https://github.com/hoytech/strfry)
 - [Noteguard Repository](https://github.com/damus-io/noteguard)
+- [Blossom Server](https://github.com/hzrd149/blossom-server)
+- [Blossom Protocol Specification](https://github.com/hzrd149/blossom)
 - [Nostr Protocol](https://github.com/nostr-protocol/nostr)
 - [NIPs (Nostr Implementation Possibilities)](https://github.com/nostr-protocol/nips)
 
@@ -276,6 +384,7 @@ Contributions are welcome! Please open an issue or pull request.
 For issues specific to:
 - Strfry: [strfry issues](https://github.com/hoytech/strfry/issues)
 - Noteguard: [noteguard issues](https://github.com/damus-io/noteguard/issues)
+- Blossom Server: [blossom-server issues](https://github.com/hzrd149/blossom-server/issues)
 - This setup: Open an issue in this repository
 
 

@@ -1,0 +1,123 @@
+# Blossom Server Configuration for Nostr Arabia Relay
+#
+# Environment Variable Support:
+# You can use environment variables in this config file using the syntax: "${VAR_NAME}"
+
+# Override the domain that is used in the blobs "url" field
+# Update this to your actual domain
+publicDomain: ""
+
+databasePath: data/sqlite.db
+
+dashboard:
+  # Enable admin dashboard
+  enabled: true
+  # admin username
+  username: admin
+  # Set password via environment variable for security
+  # If left blank, a password will be generated on startup and shown in logs
+  password: "${BLOSSOM_ADMIN_PASSWORD}"
+
+discovery:
+  # Find files by querying nostr relays
+  nostr:
+    enabled: false
+    relays:
+      - wss://relay.nostr.band
+  # Find files by asking upstream CDNs
+  upstream:
+    enabled: false
+    domains: []
+
+storage:
+  # Using local storage backend
+  backend: local
+
+  # Immediately removes a blob when there are no owners
+  removeWhenNoOwners: false
+
+  # Local storage configuration
+  local:
+    dir: ./data/blobs
+
+  # Blob retention rules (checked in descending order)
+  # Blobs not matching any rules will be removed
+  rules:
+    # Keep text files longest
+    - type: text/*
+      expiration: 1 month
+    # Images kept for 2 weeks
+    - type: "image/*"
+      expiration: 2 weeks
+    # Videos kept for 1 week
+    - type: "video/*"
+      expiration: 1 week
+    # Models kept for 1 week
+    - type: "model/*"
+      expiration: 1 week
+    # Everything else kept for 5 days
+    - type: "*"
+      expiration: 5 days
+
+# Config for the /upload endpoint
+upload:
+  # Enable uploads
+  enabled: true
+  # Require authentication to upload
+  requireAuth: true
+  # Only check rules that include "pubkeys"
+  requirePubkeyInRule: false
+
+# Config for the /media endpoint (with processing)
+media:
+  # Enable /media endpoint with image/video optimization
+  enabled: true
+  # Require authentication to upload to /media
+  requireAuth: true
+  # Only check rules that include "pubkeys"
+  requirePubkeyInRule: false
+
+  # Image optimization options
+  image:
+    # Image quality 0-100
+    quality: 85
+    # Create progressive jpeg/png images for large images
+    progressive: true
+    # Maximum dimensions
+    maxWidth: 1920
+    maxHeight: 1080
+    # Output format
+    outputFormat: "webp"
+    # Keep aspect ratio when resizing
+    maintainAspectRatio: true
+    # Strip EXIF metadata for privacy
+    keepExif: false
+    # FPS for animated images (GIFs)
+    fps: 30
+
+  # Video optimization options
+  video:
+    # Video quality 0-100
+    quality: 85
+    # Maximum height
+    maxHeight: 1080
+    # Maximum fps
+    maxFps: 30
+    # Output format
+    format: "mp4"
+    # Audio codec
+    audioCodec: "aac"
+    # Video codec
+    videoCodec: "libx264"
+
+# Config for the /list endpoint
+list:
+  # Don't require auth to list blobs
+  requireAuth: false
+  # Allow listing other users' blobs
+  allowListOthers: true
+
+# Tor proxy support (disabled by default)
+tor:
+  enabled: false
+  proxy: ""

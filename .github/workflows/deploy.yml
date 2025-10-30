@@ -91,7 +91,10 @@ jobs:
             # Login to GitHub Container Registry
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Pull latest image (using docker-compose with hyphen)
+            # Set environment variables for docker-compose
+            export BLOSSOM_ADMIN_PASSWORD="${{ secrets.BLOSSOM_ADMIN_PASSWORD }}"
+
+            # Pull latest images (using docker-compose with hyphen)
             docker-compose pull
 
             # Deploy with docker-compose
