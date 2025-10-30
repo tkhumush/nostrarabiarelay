@@ -97,19 +97,11 @@ jobs:
             # Pull latest images (using docker-compose with hyphen)
             docker-compose pull
 
-            # Check if SSL certificates need to be initialized
-            # Check if certificate exists in docker volume
-            CERT_CHECK=$(docker-compose run --rm certbot certificates 2>&1 | grep -c "Certificate Name: nostrarabia.com" || echo "0")
+            # Make init script executable
+            chmod +x init-ssl.sh
 
-            if [ "$CERT_CHECK" = "0" ]; then
-              echo "SSL certificates not found. Running initialization..."
-              # Make init script executable
-              chmod +x init-ssl.sh
-              # Run SSL initialization
-              ./init-ssl.sh
-            else
-              echo "SSL certificates found. Skipping initialization."
-            fi
+            # Run SSL initialization (script handles checking if certs exist)
+            ./init-ssl.sh
 
             # Deploy with docker-compose
             docker-compose up -d
