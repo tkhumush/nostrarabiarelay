@@ -268,12 +268,13 @@ else
     -d media.nostrarabia.com
 fi
 
-# Wait for nginx to be healthy
+# Wait for nginx to be healthy (health check uses busybox wget)
 until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy)" = "healthy" ]; do
   sleep 2
 done
 
-# Reload nginx to activate HTTPS
+# Verify and reload nginx to activate HTTPS
+docker compose exec nginx nginx -t
 docker compose exec nginx nginx -s reload
 ```
 

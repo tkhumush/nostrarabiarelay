@@ -111,8 +111,12 @@ jobs:
 
             # Check if SSL certificates exist and generate if needed
             # Use webroot mode - nginx stays running and serves .well-known/acme-challenge
+            # Dynamically get the correct volume name based on project directory
+            PROJECT_NAME=$(basename "$PWD")
+            CERT_VOL="${PROJECT_NAME}_certbot-conf"
+
             if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
-              echo "SSL certificates already exist, skipping generation"
+              echo "SSL certificates already exist (volume: $CERT_VOL), skipping generation"
             else
               echo "Generating SSL certificates using webroot mode..."
 
@@ -140,7 +144,7 @@ jobs:
             # Wait for nginx to be healthy with timeout
             echo "Waiting for nginx to be healthy..."
             WAIT_TIME=0
-            MAX_WAIT=60  # 1 minute max
+            MAX_WAIT=90  # 90 seconds - health check has 40s start_period + retries
             until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null || echo 'starting')" = "healthy" ]; do
               if [ $WAIT_TIME -ge $MAX_WAIT ]; then
                 echo " timeout!"
@@ -159,6 +163,10 @@ jobs:
               echo -n "."
             done
             echo " healthy!"
+
+            # Verify nginx config before reloading
+            echo "Verifying nginx configuration..."
+            docker compose exec nginx nginx -t
 
             # Reload nginx to pick up any new certificates
             echo "Reloading nginx configuration..."
