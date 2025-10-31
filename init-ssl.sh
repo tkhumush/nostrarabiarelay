@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-DOMAINS=("nostrarabia.com" "strfry.nostrarabia.com" "media.nostrarabia.com")
+DOMAINS=("nostrarabia.com" "relay.nostrarabia.com" "media.nostrarabia.com")
 EMAIL="admin@nostrarabia.com"  # Change this to your email
 STAGING=0  # Set to 1 for testing with Let's Encrypt staging server
 
@@ -63,7 +63,7 @@ docker-compose run --rm --entrypoint "certbot" certbot certonly \
     --no-eff-email \
     $STAGING_ARG \
     -d nostrarabia.com \
-    -d strfry.nostrarabia.com \
+    -d relay.nostrarabia.com \
     -d media.nostrarabia.com
 
 echo ""
