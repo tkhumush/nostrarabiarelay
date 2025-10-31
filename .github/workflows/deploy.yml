@@ -125,10 +125,25 @@ jobs:
             # Deploy all services using modern docker compose
             docker compose up -d
 
-            # Wait for nginx to be healthy before reloading configuration
+            # Wait for nginx to be healthy with timeout
             echo "Waiting for nginx to be healthy..."
+            WAIT_TIME=0
+            MAX_WAIT=120  # 2 minutes max
             until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null || echo 'starting')" = "healthy" ]; do
+              if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+                echo " timeout!"
+                echo "Nginx failed to become healthy after ${MAX_WAIT}s. Checking status..."
+                docker compose ps nginx
+                echo ""
+                echo "Nginx logs:"
+                docker compose logs --tail=30 nginx
+                echo ""
+                echo "Checking nginx configuration:"
+                docker compose exec nginx nginx -t || true
+                exit 1
+              fi
               sleep 2
+              WAIT_TIME=$((WAIT_TIME + 2))
               echo -n "."
             done
             echo " healthy!"
