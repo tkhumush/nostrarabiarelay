@@ -43,9 +43,8 @@ storage:
   # Blob retention rules (checked in descending order)
   # Blobs not matching any rules will be removed
   rules:
-    # Keep text files longest
+    # Text files - kept permanently
     - type: text/*
-      expiration: 1 month
       pubkeys:
         - "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca"
         - "f527cf970ce260e74261214bf612e8f75a59db1835ed7e4053326c3f65e232ee"
@@ -82,9 +81,8 @@ storage:
         - "2181959b61e2f8d55bfa728b8f8414dcbb83496a92dc915f2834fb7780f0d27d"
         - "c0de0e949d56503f8f8e21e00bc278a0bd542eeb8cc65221f6b4b05674df4ce7"
         - "f9fc3e560de034a66b8dab4dabe7bced13435293b363cb979a1933f82299f805"
-    # Images kept for 2 weeks
+    # Images - kept permanently
     - type: "image/*"
-      expiration: 2 weeks
       pubkeys:
         - "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca"
         - "f527cf970ce260e74261214bf612e8f75a59db1835ed7e4053326c3f65e232ee"
@@ -121,9 +119,8 @@ storage:
         - "2181959b61e2f8d55bfa728b8f8414dcbb83496a92dc915f2834fb7780f0d27d"
         - "c0de0e949d56503f8f8e21e00bc278a0bd542eeb8cc65221f6b4b05674df4ce7"
         - "f9fc3e560de034a66b8dab4dabe7bced13435293b363cb979a1933f82299f805"
-    # Videos kept for 1 week
+    # Videos - kept permanently
     - type: "video/*"
-      expiration: 1 week
       pubkeys:
         - "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca"
         - "f527cf970ce260e74261214bf612e8f75a59db1835ed7e4053326c3f65e232ee"
@@ -160,9 +157,8 @@ storage:
         - "2181959b61e2f8d55bfa728b8f8414dcbb83496a92dc915f2834fb7780f0d27d"
         - "c0de0e949d56503f8f8e21e00bc278a0bd542eeb8cc65221f6b4b05674df4ce7"
         - "f9fc3e560de034a66b8dab4dabe7bced13435293b363cb979a1933f82299f805"
-    # Models kept for 1 week
+    # Models - kept permanently
     - type: "model/*"
-      expiration: 1 week
       pubkeys:
         - "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca"
         - "f527cf970ce260e74261214bf612e8f75a59db1835ed7e4053326c3f65e232ee"
@@ -199,9 +195,8 @@ storage:
         - "2181959b61e2f8d55bfa728b8f8414dcbb83496a92dc915f2834fb7780f0d27d"
         - "c0de0e949d56503f8f8e21e00bc278a0bd542eeb8cc65221f6b4b05674df4ce7"
         - "f9fc3e560de034a66b8dab4dabe7bced13435293b363cb979a1933f82299f805"
-    # Everything else kept for 5 days
+    # Everything else - kept permanently
     - type: "*"
-      expiration: 5 days
       pubkeys:
         - "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca"
         - "f527cf970ce260e74261214bf612e8f75a59db1835ed7e4053326c3f65e232ee"
