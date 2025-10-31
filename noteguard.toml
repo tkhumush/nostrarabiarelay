@@ -1,5 +1,8 @@
 # Noteguard configuration for whitelisting npubs
 
+# Pipeline defines which filters to run and in what order
+pipeline = ["whitelist"]
+
 # Whitelist filter - Add your allowed npubs (public keys) here
 # Public keys should be in hex format (64 characters)
 # You can also whitelist by IP address
