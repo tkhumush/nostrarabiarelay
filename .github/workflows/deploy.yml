@@ -98,10 +98,14 @@ jobs:
             # Base images (nginx, certbot, blossom) rarely change and will use cached versions
             docker compose pull nostr-relay
 
-            # Check if SSL certificates exist by testing the file directly
-            # This is faster than spinning up a certbot container
-            CERT_PATH=$(docker volume inspect nostrarabiarelay_certbot-conf --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
-            if [ ! -f "$CERT_PATH" ]; then
+            # Check if SSL certificates exist by dynamically finding the volume
+            # Get the actual certbot-conf volume name (project-prefixed)
+            VOLUME_NAME=$(docker compose config --format json | grep -A 1 '"certbot-conf"' | grep '"name"' | cut -d'"' -f4)
+            CERT_PATH=$(docker volume inspect "$VOLUME_NAME" --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
+
+            if [ -f "$CERT_PATH" ]; then
+              echo "SSL certificates already exist at $CERT_PATH, skipping generation"
+            else
               echo "Certificates not found. Generating SSL certificates..."
 
               # Generate certificates using certbot standalone mode (before nginx starts)
@@ -110,13 +114,12 @@ jobs:
                 --email admin@nostrarabia.com \
                 --agree-tos \
                 --no-eff-email \
+                --non-interactive \
                 -d nostrarabia.com \
                 -d relay.nostrarabia.com \
                 -d media.nostrarabia.com
 
               echo "SSL certificates generated successfully"
-            else
-              echo "SSL certificates already exist at $CERT_PATH, skipping generation"
             fi
 
             # Deploy all services using modern docker compose
