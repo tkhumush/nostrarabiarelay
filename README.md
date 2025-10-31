@@ -245,7 +245,9 @@ docker compose pull nostr-relay
 
 # Generate SSL certificates (first time only, if needed)
 # Check if certificates exist by testing the file directly
-CERT_PATH=$(docker volume inspect nostrarabiarelay_certbot-conf --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
+VOLUME_NAME=$(docker compose config --format json | grep -A 1 '"certbot-conf"' | grep '"name"' | cut -d'"' -f4)
+CERT_PATH=$(docker volume inspect "$VOLUME_NAME" --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
+
 if [ ! -f "$CERT_PATH" ]; then
   # Generate using standalone mode
   docker compose run --rm certbot certonly \
@@ -253,6 +255,7 @@ if [ ! -f "$CERT_PATH" ]; then
     --email admin@nostrarabia.com \
     --agree-tos \
     --no-eff-email \
+    --non-interactive \
     -d nostrarabia.com \
     -d relay.nostrarabia.com \
     -d media.nostrarabia.com
