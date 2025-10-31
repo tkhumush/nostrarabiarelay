@@ -98,19 +98,25 @@ jobs:
             # Base images (nginx, certbot, blossom) rarely change and will use cached versions
             docker compose pull nostr-relay
 
-            # Check if SSL certificates exist by testing inside the certbot volume
-            # This is more reliable than checking the host filesystem
+            # Start all services (nginx will serve ACME challenges on HTTP)
+            echo "Starting services..."
+            docker compose up -d
+
+            # Wait for nginx to be ready to serve ACME challenges
+            echo "Waiting for nginx to start..."
+            sleep 5
+
+            # Check if SSL certificates exist and generate if needed
+            # Use webroot mode - nginx stays running and serves .well-known/acme-challenge
             if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
               echo "SSL certificates already exist, skipping generation"
             else
-              echo "Certificates not found. Generating SSL certificates..."
+              echo "Generating SSL certificates using webroot mode..."
 
-              # Stop any services that might be using port 80
-              docker compose down 2>/dev/null || true
-
-              # Generate certificates using certbot standalone mode (before nginx starts)
+              # Generate certificates using webroot mode (nginx serves the challenges)
               docker compose run --rm certbot certonly \
-                --standalone \
+                --webroot \
+                --webroot-path=/var/www/certbot \
                 --email admin@nostrarabia.com \
                 --agree-tos \
                 --no-eff-email \
@@ -119,26 +125,29 @@ jobs:
                 -d relay.nostrarabia.com \
                 -d media.nostrarabia.com
 
-              echo "SSL certificates generated successfully"
+              if [ $? -eq 0 ]; then
+                echo "SSL certificates generated successfully"
+              else
+                echo "Certificate generation failed. Check logs:"
+                docker compose logs certbot
+                exit 1
+              fi
             fi
-
-            # Deploy all services using modern docker compose
-            docker compose up -d
 
             # Wait for nginx to be healthy with timeout
             echo "Waiting for nginx to be healthy..."
             WAIT_TIME=0
-            MAX_WAIT=120  # 2 minutes max
+            MAX_WAIT=60  # 1 minute max
             until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null || echo 'starting')" = "healthy" ]; do
               if [ $WAIT_TIME -ge $MAX_WAIT ]; then
                 echo " timeout!"
-                echo "Nginx failed to become healthy after ${MAX_WAIT}s. Checking status..."
-                docker compose ps nginx
+                echo "Nginx failed to become healthy. Checking status..."
+                docker compose ps
                 echo ""
                 echo "Nginx logs:"
-                docker compose logs --tail=30 nginx
+                docker compose logs --tail=50 nginx
                 echo ""
-                echo "Checking nginx configuration:"
+                echo "Testing nginx config:"
                 docker compose exec nginx nginx -t || true
                 exit 1
               fi
@@ -148,8 +157,8 @@ jobs:
             done
             echo " healthy!"
 
-            # Verify and reload nginx configuration
-            docker compose exec nginx nginx -t
+            # Reload nginx to pick up any new certificates
+            echo "Reloading nginx configuration..."
             docker compose exec nginx nginx -s reload
 
-            echo "Deployment complete. Use 'docker compose logs -f' to view logs."
+            echo "Deployment complete! Services are running with HTTPS."

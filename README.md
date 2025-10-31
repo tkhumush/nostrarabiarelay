@@ -192,12 +192,13 @@ The deployment includes a fully dockerized nginx reverse proxy with automatic SS
 
 **SSL Certificate Management:**
 
-SSL certificates are automatically obtained during deployment using Let's Encrypt's certbot in standalone mode. The deployment process:
+SSL certificates are automatically obtained using Let's Encrypt's certbot in webroot mode. The deployment process:
 
-1. Checks if certificates already exist
-2. If not, uses certbot standalone mode to obtain certificates (before nginx starts)
-3. Starts all services with HTTPS enabled
-4. Certificates auto-renew every 12 hours via the certbot container
+1. Starts nginx (serves HTTP and ACME challenge files)
+2. Checks if certificates already exist
+3. If not, uses certbot webroot mode to obtain certificates (nginx stays running)
+4. Reloads nginx to activate HTTPS
+5. Certificates auto-renew every 12 hours via the certbot container
 
 **Important:** Ensure your DNS A records point to your server IP and port 80 is accessible:
 - `nostrarabia.com` → Your server IP
@@ -243,17 +244,21 @@ cd nostrarabiarelay
 # Pull the latest nostr-relay image (other images use cached versions)
 docker compose pull nostr-relay
 
-# Generate SSL certificates (first time only, if needed)
-# Check if certificates exist by testing inside the certbot volume
-if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
-  echo "SSL certificates already exist, skipping generation"
-else
-  # Stop services that might be using port 80
-  docker compose down 2>/dev/null || true
+# Start all services (nginx will serve ACME challenges)
+docker compose up -d
 
-  # Generate using standalone mode
+# Wait a moment for nginx to be ready
+sleep 5
+
+# Generate SSL certificates (first time only, if needed)
+# Use webroot mode - nginx stays running and serves the ACME challenges
+if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
+  echo "SSL certificates already exist"
+else
+  echo "Generating SSL certificates..."
   docker compose run --rm certbot certonly \
-    --standalone \
+    --webroot \
+    --webroot-path=/var/www/certbot \
     --email admin@nostrarabia.com \
     --agree-tos \
     --no-eff-email \
@@ -263,14 +268,13 @@ else
     -d media.nostrarabia.com
 fi
 
-# Start all services
-docker compose up -d
-
-# Wait for nginx to be healthy, then reload
+# Wait for nginx to be healthy
 until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy)" = "healthy" ]; do
   sleep 2
 done
-docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+
+# Reload nginx to activate HTTPS
+docker compose exec nginx nginx -s reload
 ```
 
 ### Production Considerations
@@ -416,9 +420,9 @@ docker compose up -d
 **Certificate generation fails:**
 1. Verify DNS records are correctly pointed to your server
 2. Wait a few minutes for DNS propagation
-3. Check if port 80 is accessible from the internet (certbot standalone requires it)
-4. Review certbot logs: `docker compose logs certbot`
-5. Stop nginx if running: `docker compose stop nginx` and retry certificate generation
+3. Check if port 80 is accessible from the internet
+4. Verify nginx is serving the ACME challenge directory: `curl http://your-domain/.well-known/acme-challenge/`
+5. Review certbot logs: `docker compose logs certbot`
 
 **502 Bad Gateway:**
 1. Check if backend services are running: `docker compose ps`
