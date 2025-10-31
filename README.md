@@ -15,7 +15,7 @@ A whitelisted Nostr relay powered by [strfry](https://github.com/hoytech/strfry)
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker with Compose plugin (v2)
 - Git
 
 ### Local Development
@@ -51,16 +51,16 @@ relay {
 
 4. Build and run:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 5. Check logs:
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 Your services will be available at:
-- **Production (with SSL)**: `wss://strfry.nostrarabia.com` and `https://media.nostrarabia.com`
+- **Production (with SSL)**: `wss://relay.nostrarabia.com` and `https://media.nostrarabia.com`
 - **Local development**: `ws://localhost:7777` (relay) and `http://localhost:3000` (media)
 
 ### Testing Your Relay
@@ -91,7 +91,7 @@ pubkeys = [
 
 4. Restart the relay:
 ```bash
-docker-compose restart
+docker compose restart
 ```
 
 ### Relay Settings
@@ -180,7 +180,7 @@ The deployment includes a fully dockerized nginx reverse proxy with automatic SS
 
 **Domains configured:**
 - `nostrarabia.com` - Main landing page
-- `strfry.nostrarabia.com` - Nostr relay with WebSocket support
+- `relay.nostrarabia.com` - Nostr relay with WebSocket support
 - `media.nostrarabia.com` - Blossom media server
 
 **Features:**
@@ -190,23 +190,18 @@ The deployment includes a fully dockerized nginx reverse proxy with automatic SS
 - Optimized for large file uploads (media server)
 - Security headers and best practices
 
-**SSL Initialization:**
+**SSL Certificate Management:**
 
-On first deployment, SSL certificates are automatically obtained using the `init-ssl.sh` script. You can also run it manually:
+SSL certificates are automatically obtained during deployment using Let's Encrypt's certbot in standalone mode. The deployment process:
 
-```bash
-./init-ssl.sh
-```
+1. Checks if certificates already exist
+2. If not, uses certbot standalone mode to obtain certificates (before nginx starts)
+3. Starts all services with HTTPS enabled
+4. Certificates auto-renew every 12 hours via the certbot container
 
-The script will:
-1. Create temporary nginx configuration
-2. Start nginx for ACME challenge
-3. Obtain certificates from Let's Encrypt for all domains
-4. Stop temporary setup and restore full configuration
-
-**Important:** Make sure your DNS A records point to your server IP before running the SSL initialization:
+**Important:** Ensure your DNS A records point to your server IP and port 80 is accessible:
 - `nostrarabia.com` → Your server IP
-- `strfry.nostrarabia.com` → Your server IP
+- `relay.nostrarabia.com` → Your server IP
 - `media.nostrarabia.com` → Your server IP
 
 ## Deployment
@@ -231,7 +226,7 @@ To enable automatic deployment to your server:
 
 2. Uncomment the `deploy` job in `.github/workflows/deploy.yml`
 
-3. Update the deployment path in the workflow
+3. Ensure port 80 is accessible for SSL certificate generation
 
 4. Push to main branch to trigger deployment
 
@@ -245,13 +240,24 @@ git clone https://github.com/your-username/nostrarabiarelay.git
 cd nostrarabiarelay
 
 # Pull the latest images
-docker-compose pull
+docker compose pull
 
-# Initialize SSL certificates (first time only)
-./init-ssl.sh
+# Generate SSL certificates (first time only, if needed)
+# Check if certificates exist
+if ! docker compose run --rm certbot certificates 2>&1 | grep -q "Certificate Name: nostrarabia.com"; then
+  # Generate using standalone mode
+  docker compose run --rm certbot certonly \
+    --standalone \
+    --email admin@nostrarabia.com \
+    --agree-tos \
+    --no-eff-email \
+    -d nostrarabia.com \
+    -d relay.nostrarabia.com \
+    -d media.nostrarabia.com
+fi
 
 # Start all services
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Production Considerations
@@ -264,10 +270,10 @@ docker-compose up -d
 **2. Persistent Storage & Backups:**
 ```bash
 # Backup relay database
-docker-compose exec nostr-relay tar czf /backup/strfry-db-$(date +%Y%m%d).tar.gz /app/strfry-db
+docker compose exec nostr-relay tar czf /backup/strfry-db-$(date +%Y%m%d).tar.gz /app/strfry-db
 
 # Backup blossom media
-docker-compose exec blossom-server tar czf /backup/blossom-data-$(date +%Y%m%d).tar.gz /app/data
+docker compose exec blossom-server tar czf /backup/blossom-data-$(date +%Y%m%d).tar.gz /app/data
 
 # Backup SSL certificates
 tar czf /backup/certbot-$(date +%Y%m%d).tar.gz certbot/
@@ -275,8 +281,8 @@ tar czf /backup/certbot-$(date +%Y%m%d).tar.gz certbot/
 
 **3. Monitoring:**
 - Health checks are configured for all services
-- Check service status: `docker-compose ps`
-- View logs: `docker-compose logs -f [service-name]`
+- Check service status: `docker compose ps`
+- View logs: `docker compose logs -f [service-name]`
 
 **4. Firewall Configuration:**
 ```bash
@@ -297,7 +303,7 @@ sudo ufw enable
 Ensure your DNS A records are correctly configured:
 ```
 nostrarabia.com       → 172.105.154.238
-strfry.nostrarabia.com → 172.105.154.238
+relay.nostrarabia.com → 172.105.154.238
 media.nostrarabia.com  → 172.105.154.238
 ```
 
@@ -323,19 +329,19 @@ nak decode npub1...
 View real-time logs:
 ```bash
 # Relay logs
-docker-compose logs -f nostr-relay
+docker compose logs -f nostr-relay
 
 # Blossom server logs
-docker-compose logs -f blossom-server
+docker compose logs -f blossom-server
 
 # All services
-docker-compose logs -f
+docker compose logs -f
 ```
 
 Check relay info (NIP-11):
 ```bash
 # Production
-curl https://strfry.nostrarabia.com -H "Accept: application/nostr+json"
+curl https://relay.nostrarabia.com -H "Accept: application/nostr+json"
 
 # Local
 curl http://localhost:7777 -H "Accept: application/nostr+json"
@@ -351,22 +357,22 @@ Login with username `admin` and the password set in `BLOSSOM_ADMIN_PASSWORD`
 Check nginx status and configuration:
 ```bash
 # View nginx logs
-docker-compose logs -f nginx
+docker compose logs -f nginx
 
 # Test nginx configuration
-docker-compose exec nginx nginx -t
+docker compose exec nginx nginx -t
 
 # Reload nginx configuration
-docker-compose exec nginx nginx -s reload
+docker compose exec nginx nginx -s reload
 ```
 
 SSL certificate status:
 ```bash
 # List certificates
-docker-compose run --rm certbot certificates
+docker compose run --rm certbot certificates
 
 # Force renewal (for testing)
-docker-compose run --rm certbot renew --force-renewal
+docker compose run --rm certbot renew --force-renewal
 ```
 
 ## Troubleshooting
@@ -375,7 +381,7 @@ docker-compose run --rm certbot renew --force-renewal
 
 Check logs:
 ```bash
-docker-compose logs nostr-relay
+docker compose logs nostr-relay
 ```
 
 ### Events being rejected
@@ -388,8 +394,8 @@ docker-compose logs nostr-relay
 
 If you need to reset the database:
 ```bash
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+docker compose up -d
 ```
 
 ### SSL/HTTPS issues
@@ -397,17 +403,18 @@ docker-compose up -d
 **Certificate generation fails:**
 1. Verify DNS records are correctly pointed to your server
 2. Wait a few minutes for DNS propagation
-3. Check if port 80 is accessible from the internet
-4. Review certbot logs: `docker-compose logs certbot`
+3. Check if port 80 is accessible from the internet (certbot standalone requires it)
+4. Review certbot logs: `docker compose logs certbot`
+5. Stop nginx if running: `docker compose stop nginx` and retry certificate generation
 
 **502 Bad Gateway:**
-1. Check if backend services are running: `docker-compose ps`
-2. Verify nginx configuration: `docker-compose exec nginx nginx -t`
+1. Check if backend services are running: `docker compose ps`
+2. Verify nginx configuration: `docker compose exec nginx nginx -t`
 3. Check backend service logs for errors
 
 **Certificate not found errors:**
-1. Run SSL initialization: `./init-ssl.sh`
-2. Check if certificates exist: `ls -la certbot/conf/live/`
+1. Generate certificates manually using certbot standalone mode (see Manual Deployment section)
+2. Check if certificates exist: `docker compose run --rm certbot certificates`
 3. Verify domain names in nginx configs match your actual domains
 
 ## Architecture

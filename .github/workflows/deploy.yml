@@ -91,18 +91,42 @@ jobs:
             # Login to GitHub Container Registry
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Set environment variables for docker-compose
+            # Set environment variables for docker compose
             export BLOSSOM_ADMIN_PASSWORD="${{ secrets.BLOSSOM_ADMIN_PASSWORD }}"
 
-            # Pull latest images (using docker-compose with hyphen)
-            docker-compose pull
+            # Pull latest images using modern docker compose
+            docker compose pull
 
-            # Run SSL initialization (script checks if certs exist and skips if present)
-            chmod +x init-ssl.sh
-            ./init-ssl.sh
+            # Check if SSL certificates exist
+            if ! docker compose run --rm certbot certificates 2>&1 | grep -q "Certificate Name: nostrarabia.com"; then
+              echo "Certificates not found. Generating SSL certificates..."
 
-            # Deploy all services with docker-compose
-            docker-compose up -d
+              # Generate certificates using certbot standalone mode (before nginx starts)
+              docker compose run --rm certbot certonly \
+                --standalone \
+                --email admin@nostrarabia.com \
+                --agree-tos \
+                --no-eff-email \
+                -d nostrarabia.com \
+                -d relay.nostrarabia.com \
+                -d media.nostrarabia.com
+
+              echo "SSL certificates generated successfully"
+            else
+              echo "SSL certificates already exist, skipping generation"
+            fi
+
+            # Deploy all services using modern docker compose
+            docker compose up -d
+
+            # Wait for services to be healthy
+            sleep 10
+
+            # Verify nginx configuration
+            docker compose exec nginx nginx -t
+
+            # Reload nginx to ensure it picks up any config changes
+            docker compose exec nginx nginx -s reload
 
             # Show logs
-            docker-compose logs --tail=50
+            docker compose logs --tail=50
