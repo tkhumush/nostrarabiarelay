@@ -244,11 +244,13 @@ cd nostrarabiarelay
 docker compose pull nostr-relay
 
 # Generate SSL certificates (first time only, if needed)
-# Check if certificates exist by testing the file directly
-VOLUME_NAME=$(docker compose config --format json | grep -A 1 '"certbot-conf"' | grep '"name"' | cut -d'"' -f4)
-CERT_PATH=$(docker volume inspect "$VOLUME_NAME" --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
+# Check if certificates exist by testing inside the certbot volume
+if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
+  echo "SSL certificates already exist, skipping generation"
+else
+  # Stop services that might be using port 80
+  docker compose down 2>/dev/null || true
 
-if [ ! -f "$CERT_PATH" ]; then
   # Generate using standalone mode
   docker compose run --rm certbot certonly \
     --standalone \
