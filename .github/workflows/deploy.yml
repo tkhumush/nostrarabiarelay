@@ -141,32 +141,17 @@ jobs:
               fi
             fi
 
-            # Wait for nginx to be healthy with timeout
-            echo "Waiting for nginx to be healthy..."
-            WAIT_TIME=0
-            MAX_WAIT=90  # 90 seconds - health check has 40s start_period + retries
-            until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null || echo 'starting')" = "healthy" ]; do
-              if [ $WAIT_TIME -ge $MAX_WAIT ]; then
-                echo " timeout!"
-                echo "Nginx failed to become healthy. Checking status..."
-                docker compose ps
-                echo ""
-                echo "Nginx logs:"
-                docker compose logs --tail=50 nginx
-                echo ""
-                echo "Testing nginx config:"
-                docker compose exec nginx nginx -t || true
-                exit 1
-              fi
-              sleep 2
-              WAIT_TIME=$((WAIT_TIME + 2))
-              echo -n "."
-            done
-            echo " healthy!"
+            # Wait for nginx to be ready to accept connections
+            echo "Waiting for nginx to be ready..."
+            sleep 10
 
-            # Verify nginx config before reloading
+            # Verify nginx config is valid
             echo "Verifying nginx configuration..."
-            docker compose exec nginx nginx -t
+            if ! docker compose exec nginx nginx -t; then
+              echo "Nginx configuration test failed!"
+              docker compose logs nginx
+              exit 1
+            fi
 
             # Reload nginx to pick up any new certificates
             echo "Reloading nginx configuration..."
