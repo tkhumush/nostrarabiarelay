@@ -98,14 +98,22 @@ jobs:
             # Base images (caddy, blossom) rarely change and will use cached versions
             docker compose pull nostr-relay
 
-            # Clean up old nginx config files (migrated to Caddy)
+            # Stop and remove old nginx/certbot containers (migrated to Caddy)
+            echo "Stopping old nginx/certbot containers..."
+            docker stop nginx-proxy certbot 2>/dev/null || true
+            docker rm nginx-proxy certbot 2>/dev/null || true
+
+            # Remove old volumes (optional - keeps old certs if you want to migrate)
+            # docker volume rm nostr-relay_certbot-conf nostr-relay_certbot-www 2>/dev/null || true
+
+            # Clean up old nginx config files
             # Keep nginx/html for static files served by Caddy
             echo "Cleaning up old nginx config files..."
             rm -rf ./nginx/conf.d ./nginx/conf.d-http-only ./nginx/conf.d-backup ./nginx/ssl 2>/dev/null || true
 
             # Start all services (Caddy handles SSL automatically)
             echo "Starting services..."
-            docker compose up -d
+            docker compose up -d --remove-orphans
 
             # Wait for Caddy to obtain SSL certificates and start serving
             echo "Waiting for Caddy to obtain SSL certificates..."
