@@ -98,6 +98,9 @@ jobs:
             # Base images (nginx, certbot, blossom) rarely change and will use cached versions
             docker compose pull nostr-relay
 
+            # Clean up any old or conflicting nginx config backups
+            rm -rf ./nginx/conf.d-backup ./nginx/conf.d-http-only 2>/dev/null || true
+
             # Start all services (nginx will serve ACME challenges on HTTP)
             echo "Starting services..."
             docker compose up -d
