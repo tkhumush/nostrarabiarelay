@@ -94,11 +94,14 @@ jobs:
             # Set environment variables for docker compose
             export BLOSSOM_ADMIN_PASSWORD="${{ secrets.BLOSSOM_ADMIN_PASSWORD }}"
 
-            # Pull latest images using modern docker compose
-            docker compose pull
+            # Pull only the nostr-relay image (changes frequently from CI)
+            # Base images (nginx, certbot, blossom) rarely change and will use cached versions
+            docker compose pull nostr-relay
 
-            # Check if SSL certificates exist
-            if ! docker compose run --rm certbot certificates 2>&1 | grep -q "Certificate Name: nostrarabia.com"; then
+            # Check if SSL certificates exist by testing the file directly
+            # This is faster than spinning up a certbot container
+            CERT_PATH=$(docker volume inspect nostrarabiarelay_certbot-conf --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
+            if [ ! -f "$CERT_PATH" ]; then
               echo "Certificates not found. Generating SSL certificates..."
 
               # Generate certificates using certbot standalone mode (before nginx starts)
@@ -113,20 +116,22 @@ jobs:
 
               echo "SSL certificates generated successfully"
             else
-              echo "SSL certificates already exist, skipping generation"
+              echo "SSL certificates already exist at $CERT_PATH, skipping generation"
             fi
 
             # Deploy all services using modern docker compose
             docker compose up -d
 
-            # Wait for services to be healthy
-            sleep 10
+            # Wait for nginx to be healthy before reloading configuration
+            echo "Waiting for nginx to be healthy..."
+            until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null || echo 'starting')" = "healthy" ]; do
+              sleep 2
+              echo -n "."
+            done
+            echo " healthy!"
 
-            # Verify nginx configuration
+            # Verify and reload nginx configuration
             docker compose exec nginx nginx -t
-
-            # Reload nginx to ensure it picks up any config changes
             docker compose exec nginx nginx -s reload
 
-            # Show logs
-            docker compose logs --tail=50
+            echo "Deployment complete. Use 'docker compose logs -f' to view logs."

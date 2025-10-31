@@ -213,6 +213,7 @@ This repository includes automated CI/CD via GitHub Actions:
 1. **Automatic builds**: Every push to `main` builds a Docker image
 2. **Container Registry**: Images are pushed to GitHub Container Registry
 3. **Versioning**: Automatic tagging with git SHA and branch name
+4. **Optimized deployment**: Only pulls the nostr-relay image (changes frequently); base images are cached
 
 ### Setting Up Deployment
 
@@ -239,12 +240,13 @@ On your server:
 git clone https://github.com/your-username/nostrarabiarelay.git
 cd nostrarabiarelay
 
-# Pull the latest images
-docker compose pull
+# Pull the latest nostr-relay image (other images use cached versions)
+docker compose pull nostr-relay
 
 # Generate SSL certificates (first time only, if needed)
-# Check if certificates exist
-if ! docker compose run --rm certbot certificates 2>&1 | grep -q "Certificate Name: nostrarabia.com"; then
+# Check if certificates exist by testing the file directly
+CERT_PATH=$(docker volume inspect nostrarabiarelay_certbot-conf --format '{{ .Mountpoint }}' 2>/dev/null || echo "")/live/nostrarabia.com/fullchain.pem
+if [ ! -f "$CERT_PATH" ]; then
   # Generate using standalone mode
   docker compose run --rm certbot certonly \
     --standalone \
@@ -258,6 +260,12 @@ fi
 
 # Start all services
 docker compose up -d
+
+# Wait for nginx to be healthy, then reload
+until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy)" = "healthy" ]; do
+  sleep 2
+done
+docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 ```
 
 ### Production Considerations
