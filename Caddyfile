@@ -1,0 +1,81 @@
+# Caddy configuration for Nostr Arabia
+# Automatic HTTPS enabled for all domains
+
+# Main domain - serves static content
+nostrarabia.com, www.nostrarabia.com {
+    # Serve static files
+    root * /usr/share/caddy
+    file_server
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}
+
+# Nostr relay - WebSocket support
+relay.nostrarabia.com {
+    # Reverse proxy to strfry relay
+    reverse_proxy nostr-relay:7777 {
+        # WebSocket support
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}
+
+# Blossom media server - large file uploads
+media.nostrarabia.com {
+    # Reverse proxy to blossom server
+    reverse_proxy blossom-server:3000 {
+        # Large file upload support
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Timeouts for large uploads
+        transport http {
+            read_timeout 600s
+            write_timeout 600s
+        }
+    }
+
+    # Allow large file uploads (100MB)
+    request_body {
+        max_size 100MB
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}

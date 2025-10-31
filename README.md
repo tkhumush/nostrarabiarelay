@@ -174,9 +174,9 @@ storage:
 **Environment Variables:**
 - `BLOSSOM_ADMIN_PASSWORD`: Admin dashboard password (recommended to set via GitHub secrets for deployment)
 
-### Nginx Reverse Proxy with SSL
+### Caddy Reverse Proxy with Automatic HTTPS
 
-The deployment includes a fully dockerized nginx reverse proxy with automatic SSL certificate management via Let's Encrypt.
+The deployment uses **Caddy** as a reverse proxy with **fully automatic HTTPS** - no manual SSL certificate management needed!
 
 **Domains configured:**
 - `nostrarabia.com` - Main landing page
@@ -184,23 +184,22 @@ The deployment includes a fully dockerized nginx reverse proxy with automatic SS
 - `media.nostrarabia.com` - Blossom media server
 
 **Features:**
-- Automatic SSL certificate generation and renewal
-- HTTP to HTTPS redirects
-- WebSocket support for Nostr relay
-- Optimized for large file uploads (media server)
-- Security headers and best practices
+- ✨ **Automatic HTTPS** - Caddy obtains and renews SSL certificates automatically
+- 🔄 **Auto-renewal** - Certificates renew automatically before expiration
+- 🚀 **HTTP/3 support** - Latest HTTP protocol for better performance
+- 🔒 **Security headers** - Built-in best practices
+- 📡 **WebSocket support** - Native support for Nostr relay
+- 📤 **Large file uploads** - Configured for media server (100MB limit)
 
-**SSL Certificate Management:**
+**How it works:**
 
-SSL certificates are automatically obtained using Let's Encrypt's certbot in webroot mode. The deployment process:
+Caddy automatically:
+1. Obtains SSL certificates from Let's Encrypt on first start
+2. Redirects HTTP to HTTPS
+3. Renews certificates before they expire
+4. Configures optimal TLS settings
 
-1. Starts nginx (serves HTTP and ACME challenge files)
-2. Checks if certificates already exist
-3. If not, uses certbot webroot mode to obtain certificates (nginx stays running)
-4. Reloads nginx to activate HTTPS
-5. Certificates auto-renew every 12 hours via the certbot container
-
-**Important:** Ensure your DNS A records point to your server IP and port 80 is accessible:
+**Important:** Ensure your DNS A records point to your server IP and ports 80/443 are accessible:
 - `nostrarabia.com` → Your server IP
 - `relay.nostrarabia.com` → Your server IP
 - `media.nostrarabia.com` → Your server IP
@@ -241,49 +240,26 @@ On your server:
 git clone https://github.com/your-username/nostrarabiarelay.git
 cd nostrarabiarelay
 
-# Pull the latest nostr-relay image (other images use cached versions)
+# Pull the latest nostr-relay image
 docker compose pull nostr-relay
 
-# Start all services (nginx will serve ACME challenges)
+# Start all services - Caddy will automatically obtain SSL certificates
 docker compose up -d
 
-# Wait a moment for nginx to be ready
-sleep 5
-
-# Generate SSL certificates (first time only, if needed)
-# Use webroot mode - nginx stays running and serves the ACME challenges
-if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
-  echo "SSL certificates already exist"
-else
-  echo "Generating SSL certificates..."
-  docker compose run --rm certbot certonly \
-    --webroot \
-    --webroot-path=/var/www/certbot \
-    --email admin@nostrarabia.com \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d nostrarabia.com \
-    -d relay.nostrarabia.com \
-    -d media.nostrarabia.com
-fi
-
-# Wait for nginx to be healthy (health check uses busybox wget)
-until [ "$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy)" = "healthy" ]; do
-  sleep 2
-done
-
-# Verify and reload nginx to activate HTTPS
-docker compose exec nginx nginx -t
-docker compose exec nginx nginx -s reload
+# That's it! Caddy handles everything automatically.
+# Wait 30-60 seconds for SSL certificates to be obtained on first run.
 ```
+
+**First deployment:** Caddy will automatically obtain SSL certificates from Let's Encrypt. This takes 30-60 seconds.
+
+**Subsequent deployments:** Caddy reuses existing certificates instantly.
 
 ### Production Considerations
 
 **1. SSL Certificates:**
-- Included nginx setup handles SSL automatically with Let's Encrypt
-- Certificates renew automatically every 12 hours (certbot checks)
-- No manual certificate management needed
+- Caddy handles SSL completely automatically
+- Certificates renew automatically before expiration
+- Zero manual certificate management required
 
 **2. Persistent Storage & Backups:**
 ```bash
@@ -293,8 +269,8 @@ docker compose exec nostr-relay tar czf /backup/strfry-db-$(date +%Y%m%d).tar.gz
 # Backup blossom media
 docker compose exec blossom-server tar czf /backup/blossom-data-$(date +%Y%m%d).tar.gz /app/data
 
-# Backup SSL certificates
-tar czf /backup/certbot-$(date +%Y%m%d).tar.gz certbot/
+# Backup SSL certificates (Caddy data volume)
+docker run --rm -v nostr-relay_caddy-data:/data -v $(pwd):/backup alpine tar czf /backup/caddy-data-$(date +%Y%m%d).tar.gz -C /data .
 ```
 
 **3. Monitoring:**
@@ -372,25 +348,24 @@ Local: http://localhost:3000
 ```
 Login with username `admin` and the password set in `BLOSSOM_ADMIN_PASSWORD`
 
-Check nginx status and configuration:
+Check Caddy status and configuration:
 ```bash
-# View nginx logs
-docker compose logs -f nginx
+# View Caddy logs
+docker compose logs -f caddy
 
-# Test nginx configuration
-docker compose exec nginx nginx -t
+# Verify Caddyfile syntax
+docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile
 
-# Reload nginx configuration
-docker compose exec nginx nginx -s reload
+# Reload Caddy configuration
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
-SSL certificate status:
+SSL certificate status (automatic with Caddy):
 ```bash
-# List certificates
-docker compose run --rm certbot certificates
+# View Caddy certificates
+docker compose exec caddy caddy list-modules | grep tls
 
-# Force renewal (for testing)
-docker compose run --rm certbot renew --force-renewal
+# Caddy automatically renews certificates - no manual action needed
 ```
 
 ## Troubleshooting
@@ -418,22 +393,24 @@ docker compose up -d
 
 ### SSL/HTTPS issues
 
-**Certificate generation fails:**
+**Caddy fails to obtain certificates:**
 1. Verify DNS records are correctly pointed to your server
 2. Wait a few minutes for DNS propagation
-3. Check if port 80 is accessible from the internet
-4. Verify nginx is serving the ACME challenge directory: `curl http://your-domain/.well-known/acme-challenge/`
-5. Review certbot logs: `docker compose logs certbot`
+3. Check if ports 80 and 443 are accessible from the internet
+4. Review Caddy logs: `docker compose logs caddy`
+5. Ensure no other service is using ports 80/443
 
 **502 Bad Gateway:**
 1. Check if backend services are running: `docker compose ps`
-2. Verify nginx configuration: `docker compose exec nginx nginx -t`
-3. Check backend service logs for errors
+2. Check backend service logs for errors
+3. Verify Caddyfile configuration: `docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile`
 
-**Certificate not found errors:**
-1. Generate certificates manually using certbot standalone mode (see Manual Deployment section)
-2. Check if certificates exist: `docker compose run --rm certbot certificates`
-3. Verify domain names in nginx configs match your actual domains
+**Caddy advantages over nginx/certbot:**
+- No manual certificate generation needed
+- No health check issues
+- Simpler configuration
+- Automatic renewal without cron jobs
+- Built-in HTTP/3 support
 
 ## Architecture
 

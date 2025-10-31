@@ -95,66 +95,32 @@ jobs:
             export BLOSSOM_ADMIN_PASSWORD="${{ secrets.BLOSSOM_ADMIN_PASSWORD }}"
 
             # Pull only the nostr-relay image (changes frequently from CI)
-            # Base images (nginx, certbot, blossom) rarely change and will use cached versions
+            # Base images (caddy, blossom) rarely change and will use cached versions
             docker compose pull nostr-relay
 
-            # Clean up any old or conflicting nginx config backups
-            rm -rf ./nginx/conf.d-backup ./nginx/conf.d-http-only 2>/dev/null || true
+            # Clean up old nginx config files (migrated to Caddy)
+            # Keep nginx/html for static files served by Caddy
+            echo "Cleaning up old nginx config files..."
+            rm -rf ./nginx/conf.d ./nginx/conf.d-http-only ./nginx/conf.d-backup ./nginx/ssl 2>/dev/null || true
 
-            # Start all services (nginx will serve ACME challenges on HTTP)
+            # Start all services (Caddy handles SSL automatically)
             echo "Starting services..."
             docker compose up -d
 
-            # Wait for nginx to be ready to serve ACME challenges
-            echo "Waiting for nginx to start..."
-            sleep 5
+            # Wait for Caddy to obtain SSL certificates and start serving
+            echo "Waiting for Caddy to obtain SSL certificates..."
+            echo "This may take 30-60 seconds on first deployment."
+            sleep 30
 
-            # Check if SSL certificates exist and generate if needed
-            # Use webroot mode - nginx stays running and serves .well-known/acme-challenge
-            # Dynamically get the correct volume name based on project directory
-            PROJECT_NAME=$(basename "$PWD")
-            CERT_VOL="${PROJECT_NAME}_certbot-conf"
-
-            if docker compose run --rm --entrypoint sh certbot -c "test -f /etc/letsencrypt/live/nostrarabia.com/fullchain.pem" 2>/dev/null; then
-              echo "SSL certificates already exist (volume: $CERT_VOL), skipping generation"
-            else
-              echo "Generating SSL certificates using webroot mode..."
-
-              # Generate certificates using webroot mode (nginx serves the challenges)
-              docker compose run --rm certbot certonly \
-                --webroot \
-                --webroot-path=/var/www/certbot \
-                --email admin@nostrarabia.com \
-                --agree-tos \
-                --no-eff-email \
-                --non-interactive \
-                -d nostrarabia.com \
-                -d relay.nostrarabia.com \
-                -d media.nostrarabia.com
-
-              if [ $? -eq 0 ]; then
-                echo "SSL certificates generated successfully"
-              else
-                echo "Certificate generation failed. Check logs:"
-                docker compose logs certbot
-                exit 1
-              fi
-            fi
-
-            # Wait for nginx to be ready to accept connections
-            echo "Waiting for nginx to be ready..."
-            sleep 10
-
-            # Verify nginx config is valid
-            echo "Verifying nginx configuration..."
-            if ! docker compose exec nginx nginx -t; then
-              echo "Nginx configuration test failed!"
-              docker compose logs nginx
+            # Verify Caddy is running
+            if ! docker compose ps caddy | grep -q "Up"; then
+              echo "Caddy failed to start!"
+              docker compose logs caddy
               exit 1
             fi
 
-            # Reload nginx to pick up any new certificates
-            echo "Reloading nginx configuration..."
-            docker compose exec nginx nginx -s reload
-
-            echo "Deployment complete! Services are running with HTTPS."
+            echo "Deployment complete! Caddy has automatically obtained SSL certificates."
+            echo "Services are now running with HTTPS at:"
+            echo "  - https://nostrarabia.com"
+            echo "  - https://relay.nostrarabia.com (wss://)"
+            echo "  - https://media.nostrarabia.com"
