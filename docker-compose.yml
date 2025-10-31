@@ -64,10 +64,11 @@ services:
     networks:
       - nostr-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:80 2>&1 | grep -q '200\\|301\\|302\\|HTTP'"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   certbot:
     image: certbot/certbot
