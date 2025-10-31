@@ -44,45 +44,37 @@ services:
       retries: 3
       start_period: 40s
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-proxy
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"  # HTTP/3 support
     volumes:
-      # Nginx configuration
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/html:/usr/share/nginx/html:ro
-      # SSL certificates
-      - certbot-conf:/etc/letsencrypt:ro
-      - certbot-www:/var/www/certbot:ro
+      # Caddy configuration
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./nginx/html:/usr/share/caddy:ro  # Static files (reuse nginx/html directory)
+      # Caddy data (certificates, etc.)
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
       - nostr-relay
       - blossom-server
     restart: unless-stopped
     networks:
       - nostr-network
-    # Health check removed - nginx is clearly serving traffic
-    # Docker health checks with busybox wget are unreliable
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - certbot-conf:/etc/letsencrypt
-      - certbot-www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-    restart: unless-stopped
+    environment:
+      - CADDY_ADMIN=0.0.0.0:2019  # Admin API endpoint
 
 volumes:
   strfry-data:
     driver: local
   blossom-data:
     driver: local
-  certbot-conf:
+  caddy-data:
     driver: local
-  certbot-www:
+  caddy-config:
     driver: local
 
 networks:
