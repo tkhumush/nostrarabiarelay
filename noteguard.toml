@@ -1,14 +1,5 @@
-# Noteguard configuration for whitelisting npubs
-
-# Pipeline defines which filters to run and in what order
 pipeline = ["whitelist"]
-
-# Whitelist filter - Add your allowed npubs (public keys) here
-# Public keys should be in hex format (64 characters)
-# You can also whitelist by IP address
 [filters.whitelist]
-# Add whitelisted pubkeys here (hex format, 64 characters each)
-# Example: pubkeys = ["16c21558762108afc34e4ff19e4ed51d9a48f79e0c34531efc423d21ab435e93"]
 pubkeys = [
     "9cb3545c36940d9a2ef86d50d5c7a8fab90310cc898c4344bcfc4c822ff47bca",  # tkay
     "f527cf970ce260e74261214bf612e8f75a59db1835ed7e4053326c3f65e232ee",  # alp
@@ -46,10 +37,7 @@ pubkeys = [
     "c0de0e949d56503f8f8e21e00bc278a0bd542eeb8cc65221f6b4b05674df4ce7",  # seewaan
     "f9fc3e560de034a66b8dab4dabe7bced13435293b363cb979a1933f82299f805",  # AlexBarq
 ]
-
-# Optionally whitelist local IPs
-ips = ["127.0.0.1"]
-
+# Optionally whitelist local IP
 # Rate limiter - optional, limits notes per pubkey
 # Uncomment to enable rate limiting
 # [filters.ratelimit]
