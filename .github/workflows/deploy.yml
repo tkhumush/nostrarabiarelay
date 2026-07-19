@@ -115,6 +115,12 @@ jobs:
             echo "Starting services..."
             docker compose up -d --remove-orphans
 
+            # Reload Caddy config so bind-mounted Caddyfile changes take effect
+            # (docker compose up doesn't recreate a container when only the
+            # bind-mounted file changes; this ensures the new config is loaded)
+            echo "Reloading Caddy configuration..."
+            docker exec caddy-proxy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+
             # Wait for Caddy to obtain SSL certificates and start serving
             echo "Waiting for Caddy to obtain SSL certificates..."
             echo "This may take 30-60 seconds on first deployment."
