@@ -117,9 +117,9 @@ jobs:
 
             # Reload Caddy config so bind-mounted Caddyfile changes take effect
             # (docker compose up doesn't recreate a container when only the
-            # bind-mounted file changes; this ensures the new config is loaded)
-            echo "Reloading Caddy configuration..."
-            docker exec caddy-proxy caddy reload --config /etc/caddy/Caddyfile || echo "WARN: Caddy reload failed, will be applied on next container restart"
+            # bind-mounted file changes; restart ensures the new config is loaded)
+            echo "Restarting Caddy to apply config changes..."
+            docker restart caddy-proxy
 
             # Wait for Caddy to obtain SSL certificates and start serving
             echo "Waiting for Caddy to obtain SSL certificates..."
