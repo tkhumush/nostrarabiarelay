@@ -21,7 +21,7 @@ services:
       start_period: 40s
 
   blossom-server:
-    image: ghcr.io/hzrd149/blossom-server:master
+    image: ghcr.io/hzrd149/blossom-server:6.2.0
     container_name: blossom-server
     expose:
       - "3000"
