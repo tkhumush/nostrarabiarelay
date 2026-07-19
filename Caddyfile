@@ -7,6 +7,10 @@ nostrarabia.com, www.nostrarabia.com {
     root * /usr/share/caddy
     file_server
 
+    # NIP-05: allow JS apps to validate nostr.json (spec recommendation)
+    @nip05 path /.well-known/nostr.json
+    header @nip05 Access-Control-Allow-Origin "*"
+
     # Security headers
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
