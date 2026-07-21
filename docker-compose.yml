@@ -1,6 +1,6 @@
 services:
   nostr-relay:
-    image: ghcr.io/tkhumush/nostrarabiarelay:latest
+    image: ghcr.io/nostrarabia/nostrarabiarelay:latest
     container_name: nostr-arabia-relay
     expose:
       - "7777"
@@ -33,7 +33,7 @@ services:
     environment:
       # Set admin password via environment variable
       # You can set this in your deployment secrets
-      - BLOSSOM_ADMIN_PASSWORD=${BLOSSOM_ADMIN_PASSWORD:-changeme}
+      - BLOSSOM_ADMIN_PASSWORD=${BLOSSOM_ADMIN_PASSWORD:-}
     restart: unless-stopped
     networks:
       - nostr-network

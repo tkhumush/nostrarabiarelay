@@ -63,6 +63,9 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Deploy to server
@@ -73,6 +76,8 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           command_timeout: 20m
           script: |
+            set -e
+            
             # Create and navigate to deploy directory
             mkdir -p /home/nostrarabia/nostr-relay
             cd /home/nostrarabia/nostr-relay
@@ -81,7 +86,7 @@ jobs:
             if [ ! -d .git ]; then
               # Remove any existing files if directory exists but no git repo
               rm -rf * .[!.]* 2>/dev/null || true
-              git clone https://github.com/tkhumush/nostrarabiarelay.git .
+              git clone https://github.com/nostrarabia/nostrarabiarelay.git .
             else
               git fetch origin
               git reset --hard origin/main
