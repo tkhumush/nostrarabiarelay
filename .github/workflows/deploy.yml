@@ -88,6 +88,7 @@ jobs:
               rm -rf * .[!.]* 2>/dev/null || true
               git clone https://github.com/nostrarabia/nostrarabiarelay.git .
             else
+              git remote set-url origin https://github.com/nostrarabia/nostrarabiarelay.git
               git fetch origin
               git reset --hard origin/main
               git pull origin main
