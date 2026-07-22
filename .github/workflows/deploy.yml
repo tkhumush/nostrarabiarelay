@@ -13,6 +13,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  WEBSITE_IMAGE_NAME: nostrarabia/nostrarabia-website
 
 jobs:
   build-and-push:
@@ -49,13 +50,34 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build and push relay image
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract website metadata
+        id: website-meta
+        uses: docker/metadata-action@v5.7.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.WEBSITE_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push website image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: .
+          file: ./Dockerfile.website
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.website-meta.outputs.tags }}
+          labels: ${{ steps.website-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -100,9 +122,9 @@ jobs:
             # Set environment variables for docker compose
             export BLOSSOM_ADMIN_PASSWORD="${{ secrets.BLOSSOM_ADMIN_PASSWORD }}"
 
-            # Pull only the nostr-relay image (changes frequently from CI)
+            # Pull images from GHCR (relay + website built by CI)
             # Base images (caddy, blossom) rarely change and will use cached versions
-            docker compose pull nostr-relay
+            docker compose pull nostr-relay website
 
             # Stop and remove old nginx/certbot containers (migrated to Caddy)
             echo "Stopping old nginx/certbot containers..."

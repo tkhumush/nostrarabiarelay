@@ -1,11 +1,14 @@
 # Caddy configuration for Nostr Arabia
 # Automatic HTTPS enabled for all domains
 
-# Main domain - serves static content
+# Main domain - Next.js website
 nostrarabia.com, www.nostrarabia.com {
-    # Serve static files
-    root * /usr/share/caddy
-    file_server
+    # Reverse proxy to the website container
+    reverse_proxy website:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
 
     # Security headers + CORS for NIP-05 nostr.json
     header {

@@ -44,6 +44,23 @@ services:
       retries: 3
       start_period: 40s
 
+  website:
+    image: ghcr.io/nostrarabia/nostrarabia-website:latest
+    container_name: nostrarabia-website
+    expose:
+      - "3000"
+    environment:
+      - NOSTRARABIA_ALLOW_INDEXING=true
+    restart: unless-stopped
+    networks:
+      - nostr-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   caddy:
     image: caddy:2-alpine
     container_name: caddy-proxy
@@ -54,13 +71,13 @@ services:
     volumes:
       # Caddy configuration
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./nginx/html:/usr/share/caddy:ro  # Static files (reuse nginx/html directory)
       # Caddy data (certificates, etc.)
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
       - nostr-relay
       - blossom-server
+      - website
     restart: unless-stopped
     networks:
       - nostr-network
