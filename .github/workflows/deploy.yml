@@ -30,7 +30,8 @@ jobs:
       # relay and media hosts - down. The server has no other guard against this.
       - name: Validate Caddyfile
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE/Caddyfile:/etc/caddy/Caddyfile:ro" \
+          docker run --rm --entrypoint caddy \
+            -v "$GITHUB_WORKSPACE/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
       - name: Set up Docker Buildx
