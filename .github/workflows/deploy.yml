@@ -13,7 +13,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  WEBSITE_IMAGE_NAME: nostrarabia/nostrarabia-website
 
 jobs:
   build-and-push:
@@ -25,6 +24,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Fail the build (and therefore skip deploy) if the Caddyfile is invalid, so
+      # a config typo can never reach the server and take Caddy - and with it the
+      # relay and media hosts - down. The server has no other guard against this.
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -57,27 +64,6 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Extract website metadata
-        id: website-meta
-        uses: docker/metadata-action@v5.7.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.WEBSITE_IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push website image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
-        with:
-          context: .
-          file: ./Dockerfile.website
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.website-meta.outputs.tags }}
-          labels: ${{ steps.website-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

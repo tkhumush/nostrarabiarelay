@@ -10,13 +10,11 @@ nostrarabia.com, www.nostrarabia.com {
         header_up X-Forwarded-Proto {scheme}
     }
 
-    # Security headers + CORS for NIP-05 nostr.json
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Frame-Options "SAMEORIGIN"
-        X-Content-Type-Options "nosniff"
-        Access-Control-Allow-Origin "*"
-    }
+    # No header block here: the Next.js app sets its own complete, deliberately
+    # scoped security headers (CSP; HSTS without includeSubDomains; X-Frame-Options
+    # DENY; and ACAO only on /.well-known/nostr.json). Caddy passes them through.
+    # A header block here duplicated them (two HSTS/XFO, and a duplicate ACAO on
+    # nostr.json that browsers reject, breaking NIP-05).
 
     # Logging
     log {
