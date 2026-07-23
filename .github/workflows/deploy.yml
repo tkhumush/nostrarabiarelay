@@ -1,6 +1,10 @@
 name: Build and Deploy Nostr Relay
 
 on:
+  # Manual trigger so a website-only image update (published by the separate
+  # nostrarabia-website CI) can be pulled onto the server without a code change
+  # to this repo. The deploy job below also runs on workflow_dispatch.
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -71,7 +75,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
       packages: read
